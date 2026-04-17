@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SymptoScan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-top">
+        <p class="badge">Healthcare Symptom Checker</p>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">Dark mode</button>
+      </div>
+      <h1>SymptoScan</h1>
+      <p class="sub">Enter symptoms and get educational possibilities plus safe next steps.</p>
+    </section>
+
+    <section class="card">
+      <form id="symptom-form">
+        <label for="symptoms">Symptoms</label>
+        <textarea id="symptoms" name="symptoms" placeholder="Example: Fever for 2 days, dry cough, sore throat"
+          required></textarea>
+
+        <div class="row">
+          <div>
+            <label for="age">Age Group (optional)</label>
+            <select id="age" name="age">
+              <option value="">Select age group</option>
+              <option value="0-5">0-5 (Infant/Toddler)</option>
+              <option value="6-12">6-12 (Child)</option>
+              <option value="13-17">13-17 (Teen)</option>
+              <option value="18-29">18-29 (Young Adult)</option>
+              <option value="30-44">30-44 (Adult)</option>
+              <option value="45-59">45-59 (Midlife Adult)</option>
+              <option value="60-74">60-74 (Older Adult)</option>
+              <option value="75+">75+ (Senior)</option>
+            </select>
+          </div>
+          <div>
+            <label for="sex">Sex (optional)</label>
+            <select id="sex" name="sex">
+              <option value="">Select sex</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+              <option value="other">Other</option>
+              <option value="prefer_not_to_say">Prefer not to say</option>
+            </select>
+          </div>
+        </div>
+
+        <label for="duration">Duration (optional)</label>
+        <input id="duration" name="duration" type="text" placeholder="Example: 3 days" />
+
+        <button id="submit-btn" type="submit">Analyze Symptoms</button>
+      </form>
+    </section>
+
+    <section id="result" class="card hidden">
+      <h2>Result</h2>
+      <p id="source-pill" class="pill"></p>
+      <div class="result-grid">
+        <article>
+          <h3>Probable Conditions</h3>
+          <ul id="conditions"></ul>
+        </article>
+        <article>
+          <h3>Recommended Next Steps</h3>
+          <ul id="steps"></ul>
+        </article>
+      </div>
+      <article>
+        <h3>Warning Signs</h3>
+        <ul id="warnings"></ul>
+      </article>
+      <p id="disclaimer" class="disclaimer"></p>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+
+</html>
