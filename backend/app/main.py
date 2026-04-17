@@ -17,10 +17,24 @@ app = FastAPI(
     description="Healthcare symptom checker API for educational use.",
 )
 
-frontend_origin = os.getenv("FRONTEND_ORIGIN", "http://127.0.0.1:5500")
+frontend_origins_raw = os.getenv("FRONTEND_ORIGIN", "http://127.0.0.1:5500")
+frontend_origins = [origin.strip() for origin in frontend_origins_raw.split(",") if origin.strip()]
+
+allow_origins = [
+    *frontend_origins,
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+]
+
+# De-duplicate while preserving order.
+seen = set()
+allow_origins = [origin for origin in allow_origins if not (origin in seen or seen.add(origin))]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_origin, "http://localhost:5500", "http://127.0.0.1:3000"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

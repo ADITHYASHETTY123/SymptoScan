@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: symptoscan-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: APP_NAME
+        value: SymptoScan API
+      - key: STORE_HISTORY
+        value: "true"
+      - key: DATABASE_PATH
+        value: ./symptoscan.db
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: USE_LANGCHAIN_AGENT
+        value: "true"
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+
+  - type: static
+    name: symptoscan-frontend
+    rootDir: frontend
+    buildCommand: |
+      BACKEND_URL="${RENDER_EXTERNAL_BACKEND_URL:-http://127.0.0.1:8000}"
+      sed -i "s|http://127.0.0.1:8000|${BACKEND_URL}|" config.js
+    staticPublishPath: .
+    envVars:
+      - key: RENDER_EXTERNAL_BACKEND_URL
+        sync: false

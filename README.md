@@ -25,6 +25,8 @@ For severe or worsening symptoms, users should seek professional care immediatel
 ```text
 SymptoScan/
   backend/
+    Dockerfile
+    .dockerignore
     app/
       main.py
       schemas.py
@@ -34,9 +36,11 @@ SymptoScan/
     requirements.txt
     .env.example
   frontend/
+    config.js
     index.html
     styles.css
     app.js
+  render.yaml
   README.md
 ```
 
@@ -76,6 +80,58 @@ python -m http.server 5500
 ```
 
 Open: `http://127.0.0.1:5500`
+
+## Deployment
+
+### Option A: Render (recommended)
+
+This repo includes `render.yaml` for one blueprint with:
+- `symptoscan-api` (Docker web service)
+- `symptoscan-frontend` (static site)
+
+Steps:
+
+1. Push this repository to GitHub.
+2. In Render, choose **New +** -> **Blueprint** and connect the repo.
+3. Render will detect `render.yaml` and create both services.
+4. After API deploys, copy its public URL (example: `https://symptoscan-api.onrender.com`).
+5. Set frontend env var on Render static service:
+   - `RENDER_EXTERNAL_BACKEND_URL=https://your-api-url.onrender.com`
+6. Set backend env vars on Render web service:
+   - `FRONTEND_ORIGIN=https://your-frontend-url.onrender.com`
+   - `OPENAI_API_KEY=<your-key>` (optional)
+   - `OPENAI_MODEL=gpt-4.1-mini` (optional)
+   - `USE_LANGCHAIN_AGENT=true` (optional)
+7. Redeploy both services.
+
+Notes:
+- If `OPENAI_API_KEY` is not set, the app still works via rule-based fallback.
+- `FRONTEND_ORIGIN` supports comma-separated values if you use multiple domains.
+
+### Option B: Docker (VPS/VM)
+
+Backend container:
+
+```bash
+cd backend
+docker build -t symptoscan-api .
+docker run -d --name symptoscan-api -p 8000:8000 \
+  -e FRONTEND_ORIGIN=https://your-frontend-domain.com \
+  -e OPENAI_API_KEY=your_key_if_needed \
+  symptoscan-api
+```
+
+Frontend static hosting:
+- Host `frontend/` on Netlify, Vercel (static), GitHub Pages, or Nginx.
+- Set `frontend/config.js` -> `window.APP_CONFIG.API_BASE` to your backend URL.
+
+Example:
+
+```js
+window.APP_CONFIG = {
+  API_BASE: "https://your-backend-domain.com",
+};
+```
 
 ## API Contract
 

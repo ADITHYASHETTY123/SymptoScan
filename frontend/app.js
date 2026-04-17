@@ -1,4 +1,8 @@
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE =
+  window.APP_CONFIG?.API_BASE ||
+  (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost"
+    ? "http://127.0.0.1:8000"
+    : "");
 
 const form = document.getElementById("symptom-form");
 const submitBtn = document.getElementById("submit-btn");
@@ -77,7 +81,9 @@ form.addEventListener("submit", async (event) => {
   };
 
   try {
-    const response = await fetch(`${API_BASE}/api/check-symptoms`, {
+    const endpoint = API_BASE ? `${API_BASE}/api/check-symptoms` : "/api/check-symptoms";
+
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
