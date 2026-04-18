@@ -21,8 +21,9 @@ services:
       - key: OPENAI_API_KEY
         sync: false
 
-  - type: static
+  - type: web
     name: symptoscan-frontend
+    runtime: static
     rootDir: frontend
     buildCommand: |
       BACKEND_URL="${RENDER_EXTERNAL_BACKEND_URL:-http://127.0.0.1:8000}"
