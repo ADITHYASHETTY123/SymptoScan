@@ -30,7 +30,7 @@
 
         <div class="row">
           <div>
-            <label for="age">Age Group (optional)</label>
+            <label for="age">Age Group</label>
             <select id="age" name="age">
               <option value="">Select age group</option>
               <option value="0-5">0-5 (Infant/Toddler)</option>
@@ -44,7 +44,7 @@
             </select>
           </div>
           <div>
-            <label for="sex">Sex (optional)</label>
+            <label for="sex">Sex</label>
             <select id="sex" name="sex">
               <option value="">Select sex</option>
               <option value="female">Female</option>
@@ -55,7 +55,7 @@
           </div>
         </div>
 
-        <label for="duration">Duration (optional)</label>
+        <label for="duration">Duration</label>
         <input id="duration" name="duration" type="text" placeholder="Example: 3 days" />
 
         <button id="submit-btn" type="submit">Analyze Symptoms</button>
@@ -65,6 +65,11 @@
     <section id="result" class="card hidden">
       <h2>Result</h2>
       <p id="source-pill" class="pill"></p>
+      <p id="source-note" class="source-note"></p>
+      <div id="confidence-panel" class="confidence-panel">
+        <p id="confidence-pill" class="pill confidence-pill"></p>
+        <p id="confidence-note" class="confidence-note"></p>
+      </div>
       <div class="result-grid">
         <article>
           <h3>Probable Conditions</h3>
@@ -75,6 +80,10 @@
           <ul id="steps"></ul>
         </article>
       </div>
+      <article>
+        <h3>Recognized Symptoms From Dataset</h3>
+        <ul id="recognized-symptoms"></ul>
+      </article>
       <article>
         <h3>Warning Signs</h3>
         <ul id="warnings"></ul>

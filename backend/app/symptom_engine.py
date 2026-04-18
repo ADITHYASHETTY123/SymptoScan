@@ -6,21 +6,11 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from .knowledge_base import get_knowledge_base
 from .safety import DEFAULT_DISCLAIMER, detect_warning_signs
 from .schemas import SymptomCheckResult, SymptomRequest, SymptomResponse
 
 load_dotenv()
-
-KEYWORD_HINTS = {
-    "fever": "Viral infection (for example influenza-like illness)",
-    "cough": "Upper respiratory tract irritation or infection",
-    "sore throat": "Pharyngitis",
-    "headache": "Tension headache or migraine",
-    "nausea": "Gastroenteritis or dietary intolerance",
-    "stomach": "Gastritis or digestive upset",
-    "rash": "Allergic or inflammatory skin reaction",
-    "fatigue": "Non-specific fatigue (sleep stress nutritional factors)",
-}
 
 
 def _extract_json(text: str) -> Optional[Dict[str, Any]]:
@@ -34,33 +24,77 @@ def _extract_json(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def _build_confidence_note(confidence_level: str, recognized_symptoms: List[str], candidate_count: int) -> str:
+    if confidence_level == "high":
+        return f"The dataset found a strong pattern match from {len(recognized_symptoms)} recognized symptoms."
+    if confidence_level == "medium":
+        return f"The dataset found a partial match. Use the returned conditions as possibilities, not conclusions."
+    if candidate_count == 0:
+        return "The dataset could not find a reliable symptom pattern for this input."
+    return "The dataset evidence is limited or ambiguous, so the ranked conditions have low confidence."
+
+
 def _rule_based_result(payload: SymptomRequest) -> SymptomResponse:
-    s = payload.symptoms.lower()
-    conditions: List[str] = []
-    steps: List[str] = [
-        "Monitor symptoms for the next 24-48 hours and note any changes.",
-        "Stay hydrated and rest if symptoms are mild.",
-        "Book a clinician visit for persistent or worsening symptoms.",
-    ]
+    kb = get_knowledge_base()
+    context = kb.as_prompt_context(payload.symptoms, limit=5)
+    candidates = context["candidates"]
+    recognized_symptoms = list(context.get("extracted_symptoms") or [])
+    confidence_score = float(context.get("overall_confidence") or 0.0)
+    confidence_level = str(context.get("overall_confidence_level") or "low")
+    warning_signs = detect_warning_signs(payload.symptoms)
 
-    for keyword, label in KEYWORD_HINTS.items():
-        if keyword in s and label not in conditions:
-            conditions.append(label)
-
+    conditions = [candidate["disease"] for candidate in candidates[:5]]
+    if confidence_level == "low":
+        conditions = conditions[:3]
     if not conditions:
         conditions = [
             "Non-specific symptom pattern",
             "Further clinical evaluation may be needed",
         ]
 
-    warning_signs = detect_warning_signs(payload.symptoms)
+    steps: List[str] = []
+    seen_steps = set()
+
+    def add_step(step: str) -> None:
+        normalized = step.strip().lower()
+        if not normalized or normalized in seen_steps:
+            return
+        seen_steps.add(normalized)
+        steps.append(step)
+
     if warning_signs:
-        steps.insert(0, "Seek urgent medical care now due to possible red-flag symptoms.")
+        add_step("Seek urgent medical care now due to possible red-flag symptoms.")
+
+    extracted = context.get("extracted_symptoms") or []
+    if extracted:
+        add_step(f"Symptoms recognized from the dataset: {', '.join(extracted[:6])}.")
+
+    for candidate in candidates[:2]:
+        for precaution in candidate.get("precautions") or []:
+            if precaution:
+                add_step(precaution.capitalize())
+        if len(steps) >= 6:
+            break
+
+    default_steps = [
+        "Monitor symptoms for the next 24-48 hours and note any changes.",
+        "Stay hydrated and rest if symptoms are mild.",
+        "Book a clinician visit for persistent or worsening symptoms.",
+    ]
+    for step in default_steps:
+        add_step(step)
+
+    if confidence_level == "low":
+        add_step("Share more specific symptoms, duration, fever level, pain location, and triggers to improve the match quality.")
 
     analysis = SymptomCheckResult(
         probable_conditions=conditions[:5],
         recommended_next_steps=steps[:6],
         warning_signs=warning_signs,
+        recognized_symptoms=recognized_symptoms[:8],
+        confidence_score=round(confidence_score, 2),
+        confidence_level=confidence_level,
+        confidence_note=_build_confidence_note(confidence_level, recognized_symptoms, len(candidates)),
         educational_disclaimer=DEFAULT_DISCLAIMER,
     )
     return SymptomResponse(
@@ -90,6 +124,8 @@ def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse
     base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
     timeout = float(os.getenv("LLM_TIMEOUT", "25"))
+    kb = get_knowledge_base()
+    context = kb.as_prompt_context(payload.symptoms, limit=5)
 
     age_context = payload.age_group or (str(payload.age) if payload.age is not None else "unknown")
 
@@ -99,11 +135,9 @@ def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse
         return json.dumps(detect_warning_signs(symptoms))
 
     @tool
-    def symptom_keyword_hints(symptoms: str) -> str:
-        """Return educational condition hints from symptom keywords."""
-        lowered = symptoms.lower()
-        hints = [label for keyword, label in KEYWORD_HINTS.items() if keyword in lowered]
-        return json.dumps(hints[:6])
+    def dataset_matcher(symptoms: str) -> str:
+        """Return best dataset-grounded disease matches, symptom extraction, descriptions, and precautions."""
+        return json.dumps(kb.as_prompt_context(symptoms, limit=5))
 
     llm = ChatOpenAI(
         api_key=api_key,
@@ -118,7 +152,9 @@ def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse
             (
                 "system",
                 "You are a clinical education assistant. Do not provide diagnosis. "
-                "You may call tools for red-flag and hint support. "
+                "Always ground your reasoning in dataset evidence. "
+                "Call dataset_matcher before finalizing your answer, and call emergency_red_flags when symptoms may be severe. "
+                "Prefer the top retrieved candidates over unsupported speculation. "
                 "Return only JSON with keys: probable_conditions (array of strings), "
                 "recommended_next_steps (array of strings), warning_signs (array of strings), "
                 "educational_disclaimer (string).",
@@ -132,8 +168,8 @@ def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse
         ]
     )
 
-    agent = create_tool_calling_agent(llm=llm, tools=[emergency_red_flags, symptom_keyword_hints], prompt=prompt)
-    executor = AgentExecutor(agent=agent, tools=[emergency_red_flags, symptom_keyword_hints], verbose=False)
+    agent = create_tool_calling_agent(llm=llm, tools=[emergency_red_flags, dataset_matcher], prompt=prompt)
+    executor = AgentExecutor(agent=agent, tools=[emergency_red_flags, dataset_matcher], verbose=False)
     result = executor.invoke(
         {
             "symptoms": payload.symptoms,
@@ -159,6 +195,14 @@ def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse
         probable_conditions=(parsed.get("probable_conditions") or [])[:5],
         recommended_next_steps=(parsed.get("recommended_next_steps") or [])[:6],
         warning_signs=merged_warning_signs,
+        recognized_symptoms=(context.get("extracted_symptoms") or [])[:8],
+        confidence_score=round(float(context.get("overall_confidence") or 0.0), 2),
+        confidence_level=str(context.get("overall_confidence_level") or "low"),
+        confidence_note=_build_confidence_note(
+            str(context.get("overall_confidence_level") or "low"),
+            list(context.get("extracted_symptoms") or []),
+            len(context.get("candidates") or []),
+        ),
         educational_disclaimer=parsed.get("educational_disclaimer") or DEFAULT_DISCLAIMER,
     )
 
@@ -167,7 +211,7 @@ def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse
 
     return SymptomResponse(
         analysis=analysis,
-        source="langchain_agent",
+        source="hybrid_agent",
         created_at=datetime.now(timezone.utc),
     )
 
@@ -182,12 +226,16 @@ def _llm_result(payload: SymptomRequest) -> Optional[SymptomResponse]:
     timeout = float(os.getenv("LLM_TIMEOUT", "25"))
 
     client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+    kb = get_knowledge_base()
 
     age_context = payload.age_group or (str(payload.age) if payload.age is not None else "unknown")
+    grounded_context = kb.as_prompt_context(payload.symptoms, limit=5)
+    detected = detect_warning_signs(payload.symptoms)
 
     system_prompt = (
         "You are a clinical education assistant. Do not provide a diagnosis. "
         "Return concise educational possibilities and safe next steps. "
+        "You must use the supplied dataset retrieval context as your main evidence and avoid unsupported conditions. "
         "Always include a clear safety disclaimer. "
         "Respond in JSON with keys: probable_conditions (array of strings), "
         "recommended_next_steps (array of strings), warning_signs (array of strings), "
@@ -199,6 +247,8 @@ def _llm_result(payload: SymptomRequest) -> Optional[SymptomResponse]:
         f"Age: {age_context}\n"
         f"Sex: {payload.sex if payload.sex else 'unknown'}\n"
         f"Duration: {payload.duration if payload.duration else 'unknown'}\n"
+        f"Retrieved dataset context: {json.dumps(grounded_context)}\n"
+        f"Detected red flags: {json.dumps(detected)}\n"
         "Provide safe, educational output only."
     )
 
@@ -217,7 +267,6 @@ def _llm_result(payload: SymptomRequest) -> Optional[SymptomResponse]:
         return None
 
     warning_signs = parsed.get("warning_signs") or []
-    detected = detect_warning_signs(payload.symptoms)
     merged_warning_signs = []
     for item in [*warning_signs, *detected]:
         if item and item not in merged_warning_signs:
@@ -227,6 +276,14 @@ def _llm_result(payload: SymptomRequest) -> Optional[SymptomResponse]:
         probable_conditions=(parsed.get("probable_conditions") or [])[:5],
         recommended_next_steps=(parsed.get("recommended_next_steps") or [])[:6],
         warning_signs=merged_warning_signs,
+        recognized_symptoms=(grounded_context.get("extracted_symptoms") or [])[:8],
+        confidence_score=round(float(grounded_context.get("overall_confidence") or 0.0), 2),
+        confidence_level=str(grounded_context.get("overall_confidence_level") or "low"),
+        confidence_note=_build_confidence_note(
+            str(grounded_context.get("overall_confidence_level") or "low"),
+            list(grounded_context.get("extracted_symptoms") or []),
+            len(grounded_context.get("candidates") or []),
+        ),
         educational_disclaimer=parsed.get("educational_disclaimer") or DEFAULT_DISCLAIMER,
     )
 
@@ -235,7 +292,7 @@ def _llm_result(payload: SymptomRequest) -> Optional[SymptomResponse]:
 
     return SymptomResponse(
         analysis=analysis,
-        source="llm",
+        source="hybrid_llm",
         created_at=datetime.now(timezone.utc),
     )
 

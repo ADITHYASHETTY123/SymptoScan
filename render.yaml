@@ -14,6 +14,8 @@ services:
         value: ./symptoscan.db
       - key: OPENAI_MODEL
         value: gpt-4.1-mini
+      - key: OPENAI_BASE_URL
+        sync: false
       - key: USE_LANGCHAIN_AGENT
         value: "true"
       - key: FRONTEND_ORIGIN

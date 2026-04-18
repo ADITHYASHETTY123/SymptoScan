@@ -9,9 +9,9 @@ It accepts symptom text and returns:
 ## Features
 
 - FastAPI backend endpoint for symptom analysis
-- LangChain tool-calling agent for symptom reasoning
-- LLM-powered reasoning when API key is configured
-- Rule-based fallback when LLM is unavailable
+- Hybrid LangChain tool-calling agent grounded in your symptom dataset
+- Hybrid LLM reasoning when API key is configured
+- Dataset-backed fallback when LLM is unavailable
 - Optional SQLite history storage for previous requests
 - Simple frontend form to test the flow end-to-end
 
@@ -157,9 +157,13 @@ Response shape:
     "probable_conditions": ["..."],
     "recommended_next_steps": ["..."],
     "warning_signs": ["..."],
+    "recognized_symptoms": ["..."],
+    "confidence_score": 0.74,
+    "confidence_level": "high",
+    "confidence_note": "...",
     "educational_disclaimer": "..."
   },
-  "source": "llm",
+  "source": "hybrid_agent",
   "created_at": "2026-04-16T12:00:00Z"
 }
 ```
@@ -175,7 +179,7 @@ Set in `backend/.env`:
 - `OPENAI_MODEL` (default `gpt-4.1-mini`)
 - `OPENAI_BASE_URL` (default OpenAI endpoint)
 
-If no API key is set, backend automatically uses rule-based fallback.
+If no API key is set, backend automatically uses dataset-backed fallback.
 
 ## LangChain Agent Configuration
 
@@ -183,9 +187,22 @@ Set in `backend/.env`:
 - `USE_LANGCHAIN_AGENT=true`
 
 Runtime order:
-1. LangChain agent path (`source = langchain_agent`)
-2. Direct LLM fallback (`source = llm`)
+1. Hybrid LangChain agent path (`source = hybrid_agent`)
+2. Hybrid LLM fallback (`source = hybrid_llm`)
 3. Rule-based fallback (`source = rule_based`)
+
+## Hybrid Retrieval Flow
+
+The backend now uses the CSV files in `backend/app/data` as a lightweight knowledge base:
+
+1. User symptom text is normalized and matched against known symptom names from `dataset.csv`.
+2. Candidate diseases are ranked using symptom overlap plus severity weights from `Symptom-severity.csv`.
+3. Top matches are enriched with disease descriptions and precautions from:
+   - `symptom_Description.csv`
+   - `symptom_precaution.csv`
+4. The agent/LLM receives only this grounded context plus detected red flags before writing the final answer.
+
+This reduces random answers and makes even the non-LLM path use your dataset instead of hardcoded keyword guesses.
 
 ## Demo Video Checklist
 

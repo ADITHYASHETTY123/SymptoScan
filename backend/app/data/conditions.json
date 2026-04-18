@@ -1,0 +1,52 @@
+[
+  {
+    "condition": "Common cold",
+    "symptom_keywords": ["cough", "sore throat", "runny nose", "sneezing", "mild fever"],
+    "recommended_next_steps": [
+      "Hydrate well and rest.",
+      "Use supportive care for mild symptoms.",
+      "Seek medical advice if symptoms worsen or persist beyond a few days."
+    ],
+    "age_groups": ["all"]
+  },
+  {
+    "condition": "Influenza-like illness",
+    "symptom_keywords": ["fever", "body ache", "fatigue", "headache", "dry cough"],
+    "recommended_next_steps": [
+      "Rest and maintain fluid intake.",
+      "Monitor temperature and symptom progression.",
+      "Consider clinical evaluation if high fever or breathing issues develop."
+    ],
+    "age_groups": ["all"]
+  },
+  {
+    "condition": "Acute pharyngitis",
+    "symptom_keywords": ["sore throat", "painful swallowing", "fever", "throat irritation"],
+    "recommended_next_steps": [
+      "Use warm fluids and symptom relief measures.",
+      "Track worsening throat pain or persistent fever.",
+      "Seek clinician review if symptoms are severe or prolonged."
+    ],
+    "age_groups": ["all"]
+  },
+  {
+    "condition": "Migraine or tension headache pattern",
+    "symptom_keywords": ["headache", "nausea", "light sensitivity", "stress"],
+    "recommended_next_steps": [
+      "Rest in a low-stimulation environment.",
+      "Maintain hydration and regular meals.",
+      "Seek medical care for sudden severe or unusual headache symptoms."
+    ],
+    "age_groups": ["all"]
+  },
+  {
+    "condition": "Gastroenteritis pattern",
+    "symptom_keywords": ["nausea", "vomiting", "diarrhea", "stomach pain", "abdominal cramps"],
+    "recommended_next_steps": [
+      "Prioritize oral hydration.",
+      "Use small, bland meals as tolerated.",
+      "Seek urgent care for dehydration signs, blood in stool, or persistent vomiting."
+    ],
+    "age_groups": ["all"]
+  }
+]

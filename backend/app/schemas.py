@@ -21,12 +21,16 @@ class SymptomCheckResult(BaseModel):
     probable_conditions: List[str]
     recommended_next_steps: List[str]
     warning_signs: List[str]
+    recognized_symptoms: List[str] = []
+    confidence_score: float = 0.0
+    confidence_level: str = "low"
+    confidence_note: str = ""
     educational_disclaimer: str
 
 
 class SymptomResponse(BaseModel):
     analysis: SymptomCheckResult
-    source: str = Field(..., description="llm or rule_based")
+    source: str = Field(..., description="Origin of the answer such as hybrid_agent, hybrid_llm, or rule_based")
     created_at: datetime
 
 
@@ -37,4 +41,8 @@ class HistoryRecord(BaseModel):
     probable_conditions: List[str]
     recommended_next_steps: List[str]
     warning_signs: List[str]
+    recognized_symptoms: List[str] = []
+    confidence_score: float = 0.0
+    confidence_level: str = "low"
+    confidence_note: str = ""
     created_at: datetime

@@ -33,7 +33,20 @@ class HistoryStore:
                 )
                 """
             )
+            self._ensure_column(conn, "recognized_symptoms", "TEXT NOT NULL DEFAULT '[]'")
+            self._ensure_column(conn, "confidence_score", "REAL NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "confidence_level", "TEXT NOT NULL DEFAULT 'low'")
+            self._ensure_column(conn, "confidence_note", "TEXT NOT NULL DEFAULT ''")
             conn.commit()
+
+    def _ensure_column(self, conn: sqlite3.Connection, column_name: str, definition: str) -> None:
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(symptom_history)").fetchall()
+        }
+        if column_name in columns:
+            return
+        conn.execute(f"ALTER TABLE symptom_history ADD COLUMN {column_name} {definition}")
 
     def insert(self, symptoms: str, response: SymptomResponse) -> None:
         with self._connect() as conn:
@@ -45,8 +58,12 @@ class HistoryStore:
                     probable_conditions,
                     recommended_next_steps,
                     warning_signs,
+                    recognized_symptoms,
+                    confidence_score,
+                    confidence_level,
+                    confidence_note,
                     created_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     symptoms,
@@ -54,6 +71,10 @@ class HistoryStore:
                     json.dumps(response.analysis.probable_conditions),
                     json.dumps(response.analysis.recommended_next_steps),
                     json.dumps(response.analysis.warning_signs),
+                    json.dumps(response.analysis.recognized_symptoms),
+                    response.analysis.confidence_score,
+                    response.analysis.confidence_level,
+                    response.analysis.confidence_note,
                     response.created_at.isoformat(),
                 ),
             )
@@ -64,7 +85,8 @@ class HistoryStore:
             rows = conn.execute(
                 """
                 SELECT id, symptoms, source, probable_conditions,
-                       recommended_next_steps, warning_signs, created_at
+                       recommended_next_steps, warning_signs, recognized_symptoms,
+                       confidence_score, confidence_level, confidence_note, created_at
                 FROM symptom_history
                 ORDER BY id DESC
                 LIMIT ?
@@ -82,6 +104,10 @@ class HistoryStore:
                     probable_conditions=json.loads(row["probable_conditions"]),
                     recommended_next_steps=json.loads(row["recommended_next_steps"]),
                     warning_signs=json.loads(row["warning_signs"]),
+                    recognized_symptoms=json.loads(row["recognized_symptoms"] or "[]"),
+                    confidence_score=float(row["confidence_score"] or 0.0),
+                    confidence_level=row["confidence_level"] or "low",
+                    confidence_note=row["confidence_note"] or "",
                     created_at=datetime.fromisoformat(row["created_at"]),
                 )
             )

@@ -22,8 +22,13 @@ const resultSection = document.getElementById("result");
 const ageSelect = document.getElementById("age");
 const sexSelect = document.getElementById("sex");
 const sourcePill = document.getElementById("source-pill");
+const sourceNote = document.getElementById("source-note");
+const confidencePanel = document.getElementById("confidence-panel");
+const confidencePill = document.getElementById("confidence-pill");
+const confidenceNote = document.getElementById("confidence-note");
 const conditions = document.getElementById("conditions");
 const steps = document.getElementById("steps");
+const recognizedSymptoms = document.getElementById("recognized-symptoms");
 const warnings = document.getElementById("warnings");
 const disclaimer = document.getElementById("disclaimer");
 const themeToggle = document.getElementById("theme-toggle");
@@ -55,6 +60,27 @@ themeToggle.addEventListener("click", () => {
 });
 
 initTheme();
+
+const SOURCE_META = {
+  hybrid_agent: {
+    label: "Hybrid Agent",
+    note: "The answer was produced by the tool-calling agent after checking your dataset matches and red flags first.",
+  },
+  hybrid_llm: {
+    label: "Hybrid LLM",
+    note: "The answer was written by the LLM, but only after grounding it with ranked dataset candidates and safety checks.",
+  },
+  rule_based: {
+    label: "Dataset Fallback",
+    note: "The answer came directly from dataset matching and rule-based safety logic without using the LLM.",
+  },
+};
+
+const CONFIDENCE_META = {
+  high: { label: "High Confidence", className: "confidence-high" },
+  medium: { label: "Medium Confidence", className: "confidence-medium" },
+  low: { label: "Low Confidence", className: "confidence-low" },
+};
 
 function renderList(node, values, warning = false) {
   node.innerHTML = "";
@@ -106,10 +132,24 @@ form.addEventListener("submit", async (event) => {
     }
 
     const data = await response.json();
-    sourcePill.textContent = `Source: ${data.source}`;
+    const sourceMeta = SOURCE_META[data.source] || {
+      label: data.source,
+      note: "The backend returned this response source.",
+    };
+
+    sourcePill.textContent = `Mode: ${sourceMeta.label}`;
+    sourceNote.textContent = sourceMeta.note;
+
+    const confidence = data.analysis.confidence_level || "low";
+    const confidenceScore = Number(data.analysis.confidence_score || 0);
+    const confidenceMeta = CONFIDENCE_META[confidence] || CONFIDENCE_META.low;
+    confidencePanel.className = `confidence-panel ${confidenceMeta.className}`;
+    confidencePill.textContent = `${confidenceMeta.label} • ${Math.round(confidenceScore * 100)}%`;
+    confidenceNote.textContent = data.analysis.confidence_note || "Confidence information was not provided.";
 
     renderList(conditions, data.analysis.probable_conditions);
     renderList(steps, data.analysis.recommended_next_steps);
+    renderList(recognizedSymptoms, data.analysis.recognized_symptoms);
     renderList(warnings, data.analysis.warning_signs, true);
     disclaimer.textContent = data.analysis.educational_disclaimer;
 
