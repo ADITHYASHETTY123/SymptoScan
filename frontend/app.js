@@ -1,8 +1,20 @@
-const API_BASE =
-  window.APP_CONFIG?.API_BASE ||
-  (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost"
-    ? "http://127.0.0.1:8000"
-    : "");
+const configuredApiBase = (window.APP_CONFIG?.API_BASE || "").trim();
+const isLocalHost = window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+const isRenderFrontend = window.location.hostname.endsWith(".onrender.com");
+
+let API_BASE = configuredApiBase;
+
+if (!API_BASE) {
+  if (isLocalHost) {
+    API_BASE = "http://127.0.0.1:8000";
+  } else if (isRenderFrontend) {
+    API_BASE = "https://symptoscan-api.onrender.com";
+  }
+}
+
+if (window.location.protocol === "https:" && API_BASE.startsWith("http://")) {
+  API_BASE = API_BASE.replace("http://", "https://");
+}
 
 const form = document.getElementById("symptom-form");
 const submitBtn = document.getElementById("submit-btn");
