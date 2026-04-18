@@ -24,15 +24,11 @@ services:
   - type: web
     name: symptoscan-frontend
     runtime: static
-    rootDir: .
+    rootDir: frontend
     buildCommand: |
       BACKEND_URL="${RENDER_EXTERNAL_BACKEND_URL:-http://127.0.0.1:8000}"
-      sed -i "s|http://127.0.0.1:8000|${BACKEND_URL}|" frontend/config.js
-    staticPublishPath: frontend
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+      sed -i "s|http://127.0.0.1:8000|${BACKEND_URL}|" config.js
+    staticPublishPath: .
     envVars:
       - key: RENDER_EXTERNAL_BACKEND_URL
         sync: false
