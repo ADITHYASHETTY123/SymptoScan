@@ -335,9 +335,9 @@ def analyze_symptoms(payload: SymptomRequest) -> SymptomResponse:
             if LOG_ENABLED:
                 logger.info("pipeline.selected source=hybrid_agent confidence=%s score=%.2f", result.analysis.confidence_level, result.analysis.confidence_score)
             return result
-    except Exception:
+    except Exception as exc:
         if LOG_ENABLED:
-            logger.warning("pipeline.agent.error falling_back_to_llm", exc_info=True)
+            logger.warning("pipeline.agent.error falling_back_to_llm error=%s", type(exc).__name__)
 
     try:
         result = _llm_result(payload)
@@ -345,9 +345,9 @@ def analyze_symptoms(payload: SymptomRequest) -> SymptomResponse:
             if LOG_ENABLED:
                 logger.info("pipeline.selected source=hybrid_llm confidence=%s score=%.2f", result.analysis.confidence_level, result.analysis.confidence_score)
             return result
-    except Exception:
+    except Exception as exc:
         if LOG_ENABLED:
-            logger.warning("pipeline.llm.error falling_back_to_rule_based", exc_info=True)
+            logger.warning("pipeline.llm.error falling_back_to_rule_based error=%s", type(exc).__name__)
 
     result = _rule_based_result(payload)
     if LOG_ENABLED:
