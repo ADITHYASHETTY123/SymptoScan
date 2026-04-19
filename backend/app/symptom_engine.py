@@ -1,5 +1,6 @@
 import json
 import os
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +12,17 @@ from .safety import DEFAULT_DISCLAIMER, detect_warning_signs
 from .schemas import SymptomCheckResult, SymptomRequest, SymptomResponse
 
 load_dotenv()
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+LOG_ENABLED = _env_flag("DEBUG_LOGS", os.getenv("APP_ENV", "development").lower() == "development")
+logger = logging.getLogger("symptoscan.engine")
 
 
 def _extract_json(text: str) -> Optional[Dict[str, Any]]:
@@ -107,10 +119,14 @@ def _rule_based_result(payload: SymptomRequest) -> SymptomResponse:
 def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
+        if LOG_ENABLED:
+            logger.info("pipeline.agent.skipped reason=no_api_key")
         return None
 
     use_agent = os.getenv("USE_LANGCHAIN_AGENT", "true").lower() == "true"
     if not use_agent:
+        if LOG_ENABLED:
+            logger.info("pipeline.agent.skipped reason=disabled_by_env")
         return None
 
     try:
@@ -119,6 +135,8 @@ def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse
         from langchain_core.tools import tool
         from langchain_openai import ChatOpenAI
     except Exception:
+        if LOG_ENABLED:
+            logger.warning("pipeline.agent.skipped reason=langchain_import_error", exc_info=True)
         return None
 
     base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
@@ -182,6 +200,8 @@ def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse
     content = str(result.get("output", ""))
     parsed = _extract_json(content)
     if not parsed:
+        if LOG_ENABLED:
+            logger.warning("pipeline.agent.invalid_json_output")
         return None
 
     warning_signs = parsed.get("warning_signs") or []
@@ -207,6 +227,8 @@ def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse
     )
 
     if not analysis.probable_conditions or not analysis.recommended_next_steps:
+        if LOG_ENABLED:
+            logger.warning("pipeline.agent.incomplete_output")
         return None
 
     return SymptomResponse(
@@ -219,6 +241,8 @@ def _langchain_agent_result(payload: SymptomRequest) -> Optional[SymptomResponse
 def _llm_result(payload: SymptomRequest) -> Optional[SymptomResponse]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
+        if LOG_ENABLED:
+            logger.info("pipeline.llm.skipped reason=no_api_key")
         return None
 
     base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
@@ -264,6 +288,8 @@ def _llm_result(payload: SymptomRequest) -> Optional[SymptomResponse]:
     content = completion.choices[0].message.content or ""
     parsed = _extract_json(content)
     if not parsed:
+        if LOG_ENABLED:
+            logger.warning("pipeline.llm.invalid_json_output")
         return None
 
     warning_signs = parsed.get("warning_signs") or []
@@ -288,6 +314,8 @@ def _llm_result(payload: SymptomRequest) -> Optional[SymptomResponse]:
     )
 
     if not analysis.probable_conditions or not analysis.recommended_next_steps:
+        if LOG_ENABLED:
+            logger.warning("pipeline.llm.incomplete_output")
         return None
 
     return SymptomResponse(
@@ -298,17 +326,30 @@ def _llm_result(payload: SymptomRequest) -> Optional[SymptomResponse]:
 
 
 def analyze_symptoms(payload: SymptomRequest) -> SymptomResponse:
+    if LOG_ENABLED:
+        logger.info("pipeline.start")
+
     try:
         result = _langchain_agent_result(payload)
         if result:
+            if LOG_ENABLED:
+                logger.info("pipeline.selected source=hybrid_agent confidence=%s score=%.2f", result.analysis.confidence_level, result.analysis.confidence_score)
             return result
     except Exception:
-        pass
+        if LOG_ENABLED:
+            logger.warning("pipeline.agent.error falling_back_to_llm", exc_info=True)
 
     try:
         result = _llm_result(payload)
         if result:
+            if LOG_ENABLED:
+                logger.info("pipeline.selected source=hybrid_llm confidence=%s score=%.2f", result.analysis.confidence_level, result.analysis.confidence_score)
             return result
     except Exception:
-        pass
-    return _rule_based_result(payload)
+        if LOG_ENABLED:
+            logger.warning("pipeline.llm.error falling_back_to_rule_based", exc_info=True)
+
+    result = _rule_based_result(payload)
+    if LOG_ENABLED:
+        logger.info("pipeline.selected source=rule_based confidence=%s score=%.2f", result.analysis.confidence_level, result.analysis.confidence_score)
+    return result

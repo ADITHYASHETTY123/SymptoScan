@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import List, Optional
 
 from dotenv import load_dotenv
@@ -10,6 +11,22 @@ from .schemas import HistoryRecord, SymptomRequest, SymptomResponse
 from .symptom_engine import analyze_symptoms
 
 load_dotenv()
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+LOG_ENABLED = _env_flag("DEBUG_LOGS", os.getenv("APP_ENV", "development").lower() == "development")
+
+logging.basicConfig(
+    level=logging.INFO if LOG_ENABLED else logging.WARNING,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+logger = logging.getLogger("symptoscan.api")
 
 app = FastAPI(
     title=os.getenv("APP_NAME", "SymptoScan API"),
@@ -52,9 +69,35 @@ def health() -> dict:
 
 @app.post("/api/check-symptoms", response_model=SymptomResponse)
 def check_symptoms(payload: SymptomRequest) -> SymptomResponse:
+    if LOG_ENABLED:
+        logger.info(
+            "request.received symptoms=%r age=%s age_group=%s sex=%s duration=%s",
+            payload.symptoms,
+            payload.age,
+            payload.age_group,
+            payload.sex,
+            payload.duration,
+        )
+
     response = analyze_symptoms(payload)
+
+    if LOG_ENABLED:
+        logger.info(
+            "request.completed source=%s confidence_level=%s confidence_score=%.2f recognized=%s warnings=%s top_conditions=%s",
+            response.source,
+            response.analysis.confidence_level,
+            response.analysis.confidence_score,
+            len(response.analysis.recognized_symptoms),
+            len(response.analysis.warning_signs),
+            response.analysis.probable_conditions[:3],
+        )
+
     if store:
         store.insert(payload.symptoms, response)
+
+        if LOG_ENABLED:
+            logger.info("history.saved source=%s created_at=%s", response.source, response.created_at.isoformat())
+
     return response
 
 
