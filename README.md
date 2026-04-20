@@ -203,19 +203,3 @@ The backend now uses the CSV files in `backend/app/data` as a lightweight knowle
 4. The agent/LLM receives only this grounded context plus detected red flags before writing the final answer.
 
 This reduces random answers and makes even the non-LLM path use your dataset instead of hardcoded keyword guesses.
-
-## Demo Video Checklist
-
-For your deliverable video:
-1. Start backend and open Swagger docs.
-2. Submit one mild symptom case.
-3. Submit one red-flag symptom case (for warning signs).
-4. Show frontend form and results.
-5. Show history endpoint output.
-
-## Evaluation Mapping
-
-- Correctness: structured JSON output with validation
-- LLM reasoning quality: optional LLM analysis path
-- Safety disclaimers: enforced in all responses
-- Code design: modular backend and clean API contracts
